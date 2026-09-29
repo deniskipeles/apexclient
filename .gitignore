@@ -1,0 +1,32 @@
+# Node
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust & Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Android Build Artifacts & Gradle
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/build/
+src-tauri/gen/android/app/build/
+dist-apk/
+*.apk
+*.aab
+
+# Local Secrets & Signing Keys (Do not commit to public repos)
+release.keystore
+*.keystore
+*.jks
+.env
+.env.*
+!.env.example
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
