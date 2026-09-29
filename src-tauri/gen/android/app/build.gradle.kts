@@ -1,3 +1,4 @@
+import java.io.FileInputStream
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -15,16 +16,34 @@ val tauriProperties = Properties().apply {
 }
 
 android {
-    compileSdk = 37
+    compileSdk = 34
     namespace = "com.kipeleskemboi.apexclient"
+
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        // Allow unencrypted local Wi-Fi HTTP (http://192.168.x.x:5000)
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.kipeleskemboi.apexclient"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 34
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+
+    // ── 1. NATIVE GRADLE RELEASE SIGNING ──
+    signingConfigs {
+        create("release") {
+            val keystorePropertiesFile = rootProject.file("keystore.properties")
+            val keystoreProperties = Properties()
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["password"] as String
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["password"] as String
+            }
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -39,9 +58,13 @@ android {
             }
         }
         getByName("release") {
-            optimization {
-               enable = true
-            }
+            // Attach native signing (v1 + v2 + v3 + 4-byte zipalign)
+            signingConfig = signingConfigs.getByName("release")
+            
+            // Disable code shrinking/R8 until your app is verified working
+            // (R8 can strip JNI native entry points causing startup crash)
+            isMinifyEnabled = false
+
             proguardFiles(
                 *fileTree(".") {
                   include("**/*.pro")
@@ -50,10 +73,12 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+
     buildFeatures {
         buildConfig = true
     }
