@@ -1,9 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Automated Multi-Architecture Android Build..."
+echo "🚀 Starting Production-Grade Android Build..."
 
-# ── 1. VERIFY ENVIRONMENT & TARGETS ──────────────────────────────────────────
 if [ -z "$ANDROID_HOME" ]; then
     export ANDROID_HOME="$HOME/Android/Sdk"
 fi
@@ -12,89 +11,68 @@ if [ -z "$NDK_HOME" ]; then
     export NDK_HOME="$ANDROID_HOME/ndk/$(ls $ANDROID_HOME/ndk 2>/dev/null | tail -n 1)"
 fi
 
-echo "📦 Android SDK: $ANDROID_HOME"
-echo "📦 Android NDK: $NDK_HOME"
+export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
 
-echo "🦀 Adding Rust compilation targets for all Android architectures..."
-rustup target add aarch64-linux-android \
-                   armv7-linux-androideabi \
-                   x86_64-linux-android \
-                   i686-linux-android
+# 1. Ensure Keystore & Gradle signing configuration exist
+mkdir -p src-tauri/gen/android
 
-# ── 2. CREATE AUTO-SIGNING KEYSTORE (IF MISSING) ─────────────────────────────
-KEYSTORE_PATH="release.keystore"
-KEY_ALIAS="apexclient"
-KEY_PASS="apexclient123"
-
-if [ ! -f "$KEYSTORE_PATH" ]; then
-    echo "🔑 Generating release keystore for device installation..."
+if [ ! -f "release.keystore" ]; then
+    echo "🔑 Generating release.keystore..."
     keytool -genkeypair -v \
-        -keystore "$KEYSTORE_PATH" \
-        -alias "$KEY_ALIAS" \
+        -keystore "release.keystore" \
+        -alias "apexclient" \
         -keyalg RSA \
         -keysize 2048 \
         -validity 10000 \
-        -storepass "$KEY_PASS" \
-        -keypass "$KEY_PASS" \
+        -storepass "apexclient123" \
+        -keypass "apexclient123" \
         -dname "CN=ApexClient, OU=Mobile, O=ApexApp, L=Nairobi, ST=Nairobi, C=KE"
 fi
 
-# ── 3. BUILD FRONTEND ────────────────────────────────────────────────────────
-echo "⚡ Building frontend distribution..."
-npm run build
+cp release.keystore src-tauri/gen/android/release.keystore
 
-# ── 4. COMPILE ANDROID RELEASE APKS ──────────────────────────────────────────
-# Targets:
-#  - aarch64: Modern 64-bit phones & tablets (Samsung, Pixel, Xiaomi, Transsion)
-#  - armv7:   Older 32-bit phones & budget tablets
-#  - x86_64:  Android emulators & Intel Chromebooks
-ARCHS=("aarch64" "armv7" "x86_64")
+cat << 'EOF' > src-tauri/gen/android/keystore.properties
+storeFile=release.keystore
+storePassword=apexclient123
+keyAlias=apexclient
+keyPassword=apexclient123
+EOF
+
+# 2. Build Frontend
+echo "⚡ Building Vite distribution..."
+npm run build
 
 OUTPUT_DIR="dist-apk"
 mkdir -p "$OUTPUT_DIR"
 
+# 3. Build Architecture-Specific Release APKs
+# (aarch64 is what 95%+ of modern physical phones and tablets run)
+ARCHS=("aarch64" "armv7" "x86_64")
+
 for ARCH in "${ARCHS[@]}"; do
     echo ""
-    echo "🔨 Compiling optimized APK for architecture: ${ARCH}..."
+    echo "🔨 Building aligned & signed release APK for: ${ARCH}..."
     npx tauri android build --target "$ARCH" --apk
 
-    SRC_APK=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*${ARCH}*release*.apk" 2>/dev/null | head -n 1)
-    if [ -z "$SRC_APK" ]; then
-        SRC_APK=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*release*.apk" 2>/dev/null | head -n 1)
-    fi
+    APK_FOUND=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk" ! -name "*unaligned*" 2>/dev/null | head -n 1)
 
-    DEST_APK="${OUTPUT_DIR}/apexclient-${ARCH}.apk"
-
-    if [ -f "$SRC_APK" ]; then
-        echo "🔏 Signing ${DEST_APK}..."
-        cp "$SRC_APK" "$DEST_APK"
-
-        # Sign using jarsigner or apksigner
-        if command -v apksigner &> /dev/null; then
-            apksigner sign --ks "$KEYSTORE_PATH" --ks-pass "pass:$KEY_PASS" --key-pass "pass:$KEY_PASS" "$DEST_APK"
-        else
-            jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
-                -keystore "$KEYSTORE_PATH" -storepass "$KEY_PASS" -keypass "$KEY_PASS" \
-                "$DEST_APK" "$KEY_ALIAS"
-        fi
+    if [ -f "$APK_FOUND" ]; then
+        cp "$APK_FOUND" "${OUTPUT_DIR}/apexclient-${ARCH}.apk"
+        # Clear out build output before next arch
+        rm -rf src-tauri/gen/android/app/build/outputs/apk/*
     fi
 done
 
-# ── 5. BUILD UNIVERSAL APK (Runs on any device) ──────────────────────────────
+# 4. Build Universal APK (Combined architectures)
 echo ""
-echo "🌍 Compiling Universal Release APK (All architectures combined)..."
+echo "🌍 Building Universal Release APK..."
 npx tauri android build --apk
 
-UNIVERSAL_SRC=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*universal*release*.apk" 2>/dev/null | head -n 1)
-if [ -n "$UNIVERSAL_SRC" ]; then
-    UNIVERSAL_DEST="${OUTPUT_DIR}/apexclient-universal.apk"
-    cp "$UNIVERSAL_SRC" "$UNIVERSAL_DEST"
-    jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
-        -keystore "$KEYSTORE_PATH" -storepass "$KEY_PASS" -keypass "$KEY_PASS" \
-        "$UNIVERSAL_DEST" "$KEY_ALIAS"
+UNIVERSAL_APK=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk" ! -name "*unaligned*" 2>/dev/null | head -n 1)
+if [ -f "$UNIVERSAL_APK" ]; then
+    cp "$UNIVERSAL_APK" "${OUTPUT_DIR}/apexclient-universal.apk"
 fi
 
-# ── 6. SUMMARY ───────────────────────────────────────────────────────────────
 echo ""
-echo "🎉 Build Complete! Ultra-lean signed APKs ready for installation:"
+echo "🎉 Build Finished! Aligned & signed APKs ready:"
 ls -lh "$OUTPUT_DIR"/*.apk
