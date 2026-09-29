@@ -7,13 +7,22 @@ if [ -z "$ANDROID_HOME" ]; then
     export ANDROID_HOME="$HOME/Android/Sdk"
 fi
 
-if [ -z "$NDK_HOME" ]; then
-    export NDK_HOME="$ANDROID_HOME/ndk/$(ls $ANDROID_HOME/ndk 2>/dev/null | tail -n 1)"
+# Pin to stable NDK 26.x if present, avoiding experimental NDK 29
+if [ -d "$ANDROID_HOME/ndk" ]; then
+    STABLE_NDK=$(ls "$ANDROID_HOME/ndk" | grep "^26\." | tail -n 1)
+    if [ -n "$STABLE_NDK" ]; then
+        export NDK_HOME="$ANDROID_HOME/ndk/$STABLE_NDK"
+    else
+        export NDK_HOME="$ANDROID_HOME/ndk/$(ls $ANDROID_HOME/ndk | sort -V | tail -n 1)"
+    fi
 fi
 
 export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
 
-# 1. Ensure Keystore & Gradle signing configuration exist
+# ── 1. GRANT EXECUTE PERMISSIONS TO GRADLEW (Crucial on Linux/CI) ──
+chmod +x src-tauri/gen/android/gradlew 2>/dev/null || true
+
+# ── 2. PREPARE KEYSTORE FOR GRADLE ──
 mkdir -p src-tauri/gen/android
 
 if [ ! -f "release.keystore" ]; then
@@ -32,38 +41,35 @@ fi
 cp release.keystore src-tauri/gen/android/release.keystore
 
 cat << 'EOF' > src-tauri/gen/android/keystore.properties
-storeFile=release.keystore
-storePassword=apexclient123
+password=apexclient123
 keyAlias=apexclient
-keyPassword=apexclient123
+storeFile=release.keystore
 EOF
 
-# 2. Build Frontend
-echo "⚡ Building Vite distribution..."
+# ── 3. BUILD VITE WEB DISTRIBUTION ──
+echo "⚡ Building frontend distribution..."
 npm run build
 
 OUTPUT_DIR="dist-apk"
 mkdir -p "$OUTPUT_DIR"
 
-# 3. Build Architecture-Specific Release APKs
-# (aarch64 is what 95%+ of modern physical phones and tablets run)
+# ── 4. BUILD ARCHITECTURE-SPECIFIC RELEASE APKS ──
 ARCHS=("aarch64" "armv7" "x86_64")
 
 for ARCH in "${ARCHS[@]}"; do
     echo ""
-    echo "🔨 Building aligned & signed release APK for: ${ARCH}..."
+    echo "🔨 Building release APK for: ${ARCH}..."
     npx tauri android build --target "$ARCH" --apk
 
     APK_FOUND=$(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk" ! -name "*unaligned*" 2>/dev/null | head -n 1)
 
     if [ -f "$APK_FOUND" ]; then
         cp "$APK_FOUND" "${OUTPUT_DIR}/apexclient-${ARCH}.apk"
-        # Clear out build output before next arch
         rm -rf src-tauri/gen/android/app/build/outputs/apk/*
     fi
 done
 
-# 4. Build Universal APK (Combined architectures)
+# ── 5. BUILD UNIVERSAL APK ──
 echo ""
 echo "🌍 Building Universal Release APK..."
 npx tauri android build --apk
@@ -74,5 +80,5 @@ if [ -f "$UNIVERSAL_APK" ]; then
 fi
 
 echo ""
-echo "🎉 Build Finished! Aligned & signed APKs ready:"
+echo "🎉 Build Complete! Fully signed & aligned APKs:"
 ls -lh "$OUTPUT_DIR"/*.apk

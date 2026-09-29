@@ -16,11 +16,11 @@ val tauriProperties = Properties().apply {
 }
 
 android {
+    // Stable Android 14 SDK (API 37 does not exist and breaks Gradle)
     compileSdk = 34
     namespace = "com.kipeleskemboi.apexclient"
 
     defaultConfig {
-        // Allow unencrypted local Wi-Fi HTTP (http://192.168.x.x:5000)
         manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.kipeleskemboi.apexclient"
         minSdk = 24
@@ -29,7 +29,7 @@ android {
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
 
-    // ── 1. NATIVE GRADLE RELEASE SIGNING ──
+    // ── NATIVE GRADLE RELEASE SIGNING ──
     signingConfigs {
         create("release") {
             val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -58,12 +58,13 @@ android {
             }
         }
         getByName("release") {
-            // Attach native signing (v1 + v2 + v3 + 4-byte zipalign)
             signingConfig = signingConfigs.getByName("release")
             
-            // Disable code shrinking/R8 until your app is verified working
-            // (R8 can strip JNI native entry points causing startup crash)
+            // Set to false so R8 does not strip JNI entry points (stops the startup blink/crash)
             isMinifyEnabled = false
+            optimization {
+               enable = false
+            }
 
             proguardFiles(
                 *fileTree(".") {
