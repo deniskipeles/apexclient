@@ -51,20 +51,27 @@ jobs:
         with:
           workspaces: 'src-tauri -> target'
 
-      # ── 5. SETUP ANDROID NDK & SDK (PINNED TO STABLE NDK 26) ──
-      - name: Setup Android NDK
+      # ── 5. SETUP ANDROID NDK & SDK PLATFORMS ──
+      - name: Setup Android NDK & SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
 
-          # Select pre-installed NDK 26.x (avoid canary NDK 29)
-          NDK_VERSION=$(ls "$ANDROID_HOME/ndk" | grep "^26\." | tail -n 1)
+          # Install platform 37 if missing
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "platforms;android-36" "build-tools;34.0.0" || true
+
+          # Select stable NDK 26 or fallback
+          NDK_VERSION=$(ls "$ANDROID_HOME/ndk" 2>/dev/null | grep "^26\." | tail -n 1)
           if [ -z "$NDK_VERSION" ]; then
-            NDK_VERSION=$(ls "$ANDROID_HOME/ndk" | grep "^25\." | tail -n 1)
+            NDK_VERSION=$(ls "$ANDROID_HOME/ndk" 2>/dev/null | grep "^25\." | tail -n 1)
+          fi
+          if [ -z "$NDK_VERSION" ]; then
+            NDK_VERSION=$(ls "$ANDROID_HOME/ndk" 2>/dev/null | tail -n 1)
           fi
           echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
-          echo "Pinned Stable NDK: $NDK_VERSION"
+          echo "Using Android NDK: $NDK_VERSION"
 
-          # Fix Linux permission denied error for gradlew
+          # Fix permissions on gradlew
           chmod +x src-tauri/gen/android/gradlew 2>/dev/null || true
 
       # ── 6. INSTALL NODE DEPENDENCIES ──

@@ -16,8 +16,8 @@ val tauriProperties = Properties().apply {
 }
 
 android {
-    // Stable Android 14 SDK (API 37 does not exist and breaks Gradle)
-    compileSdk = 34
+    // ── COMPILE SDK MUST MATCH TAURI 2.12+ REQUIREMENTS ──
+    compileSdk = 37
     namespace = "com.kipeleskemboi.apexclient"
 
     defaultConfig {
@@ -29,7 +29,6 @@ android {
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
 
-    // ── NATIVE GRADLE RELEASE SIGNING ──
     signingConfigs {
         create("release") {
             val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -59,8 +58,6 @@ android {
         }
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
-            
-            // Set to false so R8 does not strip JNI entry points (stops the startup blink/crash)
             isMinifyEnabled = false
             optimization {
                enable = false
