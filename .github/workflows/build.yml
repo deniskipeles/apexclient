@@ -51,12 +51,12 @@ jobs:
         with:
           workspaces: 'src-tauri -> target'
 
-      # ── 5. SETUP ANDROID NDK & SDK ──
-      # ── SELECT STABLE NDK 26 (AVOID CANARY NDK 29) ──
+      # ── 5. SETUP ANDROID NDK & SDK (PINNED TO STABLE NDK 26) ──
       - name: Setup Android NDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          # Pick pre-installed NDK 26.x on GitHub runner
+
+          # Select pre-installed NDK 26.x (avoid canary NDK 29)
           NDK_VERSION=$(ls "$ANDROID_HOME/ndk" | grep "^26\." | tail -n 1)
           if [ -z "$NDK_VERSION" ]; then
             NDK_VERSION=$(ls "$ANDROID_HOME/ndk" | grep "^25\." | tail -n 1)
@@ -64,7 +64,7 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
           echo "Pinned Stable NDK: $NDK_VERSION"
 
-          # Ensure gradlew has execute rights on Linux checkout
+          # Fix Linux permission denied error for gradlew
           chmod +x src-tauri/gen/android/gradlew 2>/dev/null || true
 
       # ── 6. INSTALL NODE DEPENDENCIES ──
@@ -77,6 +77,7 @@ jobs:
           KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD || 'apexclient123' }}
         run: |
           chmod +x ./build_android.sh
+          chmod +x src-tauri/gen/android/gradlew 2>/dev/null || true
           ./build_android.sh
 
       # ── 8. UPLOAD INDIVIDUAL ARTIFACTS ──
@@ -85,24 +86,28 @@ jobs:
         with:
           name: apexclient-aarch64
           path: dist-apk/apexclient-aarch64.apk
+          if-no-files-found: warn
 
       - name: Upload armv7 APK
         uses: actions/upload-artifact@v4
         with:
           name: apexclient-armv7
           path: dist-apk/apexclient-armv7.apk
+          if-no-files-found: warn
 
       - name: Upload x86_64 APK
         uses: actions/upload-artifact@v4
         with:
           name: apexclient-x86_64
           path: dist-apk/apexclient-x86_64.apk
+          if-no-files-found: warn
 
       - name: Upload Universal APK
         uses: actions/upload-artifact@v4
         with:
           name: apexclient-universal
           path: dist-apk/apexclient-universal.apk
+          if-no-files-found: warn
 
       # ── 9. CREATE GITHUB RELEASE (ON VERSION TAG PUSH) ──
       - name: Publish Release Assets
