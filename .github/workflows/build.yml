@@ -13,12 +13,6 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
 
-    # Set working directory to ./apexclient if this is a subfolder in your monorepo.
-    # If apexclient is the root of the repo, change this to '.'
-    defaults:
-      run:
-        working-directory: apexclient
-
     steps:
       # ── 1. CHECKOUT SOURCE CODE ──
       - name: Checkout Repository
@@ -37,7 +31,6 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: 'apexclient/package-lock.json'
 
       # ── 4. SETUP RUST TOOLCHAIN & ANDROID TARGETS ──
       - name: Setup Rust & Android Targets
@@ -52,7 +45,7 @@ jobs:
       - name: Cache Rust Dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'apexclient/src-tauri -> target'
+          workspaces: 'src-tauri -> target'
 
       # ── 5. SETUP ANDROID NDK & SDK ──
       - name: Setup Android NDK
@@ -80,7 +73,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apexclient-apks
-          path: apexclient/dist-apk/*.apk
+          path: dist-apk/*.apk
           retention-days: 14
 
       # ── 9. CREATE GITHUB RELEASE (ON VERSION TAG PUSH) ──
@@ -88,7 +81,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: apexclient/dist-apk/*.apk
+          files: dist-apk/*.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
