@@ -137,7 +137,7 @@ function handleScannedAppUrl(rawUrl: string) {
   const isLocal = url.includes('192.168.') || url.includes('10.') || url.includes('localhost');
 
   const app = ClientStorage.addApp({
-    name: 'New Workshop App',
+    name: 'New App',
     localUrl: isLocal ? url : '',
     remoteUrl: !isLocal ? url : '',
   });
