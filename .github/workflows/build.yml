@@ -72,13 +72,30 @@ jobs:
           chmod +x ./build_android.sh
           ./build_android.sh
 
-      # ── 8. UPLOAD APKS AS ARTIFACTS ──
-      - name: Upload Built APKs
+      # ── 8. UPLOAD INDIVIDUAL ARTIFACTS ──
+      - name: Upload aarch64 APK
         uses: actions/upload-artifact@v4
         with:
-          name: apexclient-apks
-          path: dist-apk/*.apk
-          retention-days: 14
+          name: apexclient-aarch64
+          path: dist-apk/apexclient-aarch64.apk
+
+      - name: Upload armv7 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apexclient-armv7
+          path: dist-apk/apexclient-armv7.apk
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apexclient-x86_64
+          path: dist-apk/apexclient-x86_64.apk
+
+      - name: Upload Universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apexclient-universal
+          path: dist-apk/apexclient-universal.apk
 
       # ── 9. CREATE GITHUB RELEASE (ON VERSION TAG PUSH) ──
       - name: Publish Release Assets
