@@ -33,6 +33,15 @@ export class ClientStorage {
     return newApp;
   }
 
+  static updateApp(id: string, partial: Partial<ManagedApp>): ManagedApp | null {
+    const config = this.get();
+    const index = config.savedApps.findIndex((a) => a.id === id);
+    if (index === -1) return null;
+    config.savedApps[index] = { ...config.savedApps[index], ...partial };
+    this.save(config);
+    return config.savedApps[index];
+  }
+
   static removeApp(id: string): void {
     const config = this.get();
     config.savedApps = config.savedApps.filter((a) => a.id !== id);

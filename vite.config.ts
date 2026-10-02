@@ -12,6 +12,7 @@ export default defineConfig(() => ({
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
+    allowedHosts:["8788-01kxx0gnqxf148q3cbt8p9hwa9.cloudspaces.litng.ai"],
     port: 1420,
     strictPort: true,
     host: host || false,
